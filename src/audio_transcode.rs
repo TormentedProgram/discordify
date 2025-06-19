@@ -4,8 +4,8 @@ use ffmpeg_next as ffmpeg;
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use ffmpeg::{codec, filter, format, frame, media};
-use ffmpeg_next::Rational;
+use ffmpeg::{codec, filter, frame, media};
+use ffmpeg_next::{format, Rational};
 use sha1::{Sha1, Digest};
 
 fn filter(
@@ -69,11 +69,16 @@ struct Transcoder {
     frame_count: usize
 }
 
+fn linear_scale(input: f32, input_min: f32, input_max: f32, output_min: f32, output_max: f32) -> f32 {
+    (input - input_min) / (input_max - input_min) * (output_max - output_min) + output_min
+}
+
 fn transcoder<P: AsRef<Path> + ?Sized>(
     ictx: &mut format::context::Input,
     octx: &mut format::context::Output,
     path: &P,
     filter_spec: &str,
+    file_size: &f32,
 ) -> Result<Transcoder, ffmpeg::Error> {
     let input = ictx
         .streams()
@@ -114,8 +119,11 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
             .unwrap(),
     );
 
-    encoder.set_bit_rate(64 * 1024);
-    encoder.set_max_bit_rate(64 * 1024);
+    let scaled:f32 = linear_scale(file_size.to_owned(), 8.0, 500.0, 32.0, 128.0);
+    let cool_bit_rate:f32 = scaled * 1024.0;
+
+    encoder.set_bit_rate(cool_bit_rate as usize);
+    encoder.set_max_bit_rate(cool_bit_rate as usize);
 
     encoder.set_time_base((1, decoder.rate() as i32));
     output.set_time_base((1, decoder.rate() as i32));
@@ -225,18 +233,7 @@ impl Transcoder {
     }
 }
 
-// Transcode the `best` audio stream of the input file into a the output file while applying a
-// given filter. If no filter was specified the stream gets copied (`anull` filter).
-//
-// Example 1: Transcode *.mp3 file to *.wmv while speeding it up
-// transcode-audio in.mp3 out.wmv "atempo=1.2"
-//
-// Example 2: Overlay an audio file
-// transcode-audio in.mp3 out.mp3 "amovie=overlay.mp3 [ov]; [in][ov] amerge [out]"
-//
-// Example 3: Seek to a specified position (in seconds)
-// transcode-audio in.mp3 out.mp3 anull 30
-pub async fn audio(input: &PathBuf) -> PathBuf {
+pub async fn audio(input: &PathBuf, file_size: &f32) -> PathBuf {
     ffmpeg::init().unwrap();
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
@@ -267,7 +264,7 @@ pub async fn audio(input: &PathBuf) -> PathBuf {
 
     let mut ictx = format::input(&input).unwrap();
     let mut octx = format::output(&output).unwrap();
-    let mut transcoder = transcoder(&mut ictx, &mut octx, &output, &filter).unwrap();
+    let mut transcoder = transcoder(&mut ictx, &mut octx, &output, &filter, file_size).unwrap();
 
     octx.set_metadata(ictx.metadata().to_owned());
     octx.write_header().unwrap();

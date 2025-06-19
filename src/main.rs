@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     input_size = env::args().nth(2).expect("missing set file-size").parse().expect("unable to parse input size");
 
     let input_file = Path::new(&input_file).to_path_buf();
-    let audio_output_path = audio_transcode::audio(&input_file).await;
+    let audio_output_path = audio_transcode::audio(&input_file, &input_size).await;
 
     let input_file_name = input_file
         .file_name()
