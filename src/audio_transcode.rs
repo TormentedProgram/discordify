@@ -216,7 +216,7 @@ impl Transcoder {
         let seconds = total_seconds % 60;
         let formatted_time = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
         eprintln!(
-            "[RUST] AUDIO ELAPSED: \t{:8.2}s\tFRAMES: {:8}\tTIMESTAMP: {formatted_time}",
+            "[RUST] AUDIO ELAPSED: \t{:8.2}s\tFRAMES: {:8}\tTIMESTAMP: \t{formatted_time}",
             self.starting_time.elapsed().as_secs_f64(),
             self.frame_count,
         );
