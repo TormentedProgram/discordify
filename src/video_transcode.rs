@@ -280,11 +280,16 @@ impl VideoTranscoder {
         {
             return;
         }
+
+        let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        let seconds = total_seconds % 60;
+        let formatted_time = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
         eprintln!(
-            "[RUST] time elapsed: \t{:8.2}\tframes: {:8}\ttimestamp: {:8.2}",
+            "[RUST] VIDEO ELAPSED: \t{:8.2}s\tFRAMES: {:8}\tTIMESTAMP: {formatted_time}",
             self.starting_time.elapsed().as_secs_f64(),
             self.frame_count,
-            timestamp
         );
         self.last_log_frame_count = self.frame_count;
         self.last_log_time = Instant::now();

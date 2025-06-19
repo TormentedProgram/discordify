@@ -3,7 +3,9 @@ use std::io::Read;
 use ffmpeg_next as ffmpeg;
 
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use ffmpeg::{codec, filter, format, frame, media};
+use ffmpeg_next::Rational;
 use sha1::{Sha1, Digest};
 
 fn filter(
@@ -60,6 +62,11 @@ struct Transcoder {
     encoder: codec::encoder::Audio,
     in_time_base: ffmpeg::Rational,
     out_time_base: ffmpeg::Rational,
+    input_time_base: Rational,
+    last_log_time: Instant,
+    last_log_frame_count: usize,
+    starting_time: Instant,
+    frame_count: usize
 }
 
 fn transcoder<P: AsRef<Path> + ?Sized>(
@@ -124,10 +131,15 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
     Ok(Transcoder {
         stream: input.index(),
         filter,
+        input_time_base: Rational::from((1, decoder.rate() as i32)),
         decoder,
         encoder,
         in_time_base,
         out_time_base,
+        last_log_time: Instant::now(),
+        last_log_frame_count: 0,
+        starting_time: Instant::now(),
+        frame_count: 0,
     })
 }
 
@@ -183,11 +195,33 @@ impl Transcoder {
     fn receive_and_process_decoded_frames(&mut self, octx: &mut format::context::Output) {
         let mut decoded = frame::Audio::empty();
         while self.decoder.receive_frame(&mut decoded).is_ok() {
+            self.frame_count += 1;
             let timestamp = decoded.timestamp();
             decoded.set_pts(timestamp);
+            self.log_progress(f64::from(
+                Rational(timestamp.unwrap_or(0) as i32, 1) * self.input_time_base,
+            ));
             self.add_frame_to_filter(&decoded);
             self.get_and_process_filtered_frames(octx);
         }
+    }
+
+    fn log_progress(&mut self, timestamp: f64) {
+        if (self.frame_count - self.last_log_frame_count < 100 && self.last_log_time.elapsed().as_secs_f64() < 1.0) {
+            return;
+        }
+        let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        let seconds = total_seconds % 60;
+        let formatted_time = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+        eprintln!(
+            "[RUST] AUDIO ELAPSED: \t{:8.2}s\tFRAMES: {:8}\tTIMESTAMP: {formatted_time}",
+            self.starting_time.elapsed().as_secs_f64(),
+            self.frame_count,
+        );
+        self.last_log_frame_count = self.frame_count;
+        self.last_log_time = Instant::now();
     }
 }
 

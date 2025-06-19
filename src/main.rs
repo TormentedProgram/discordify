@@ -66,6 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut video_size:f32;
     let mut video_output_path;
     let mut additional_shrink_mb = 0.0;
+    let mut shrink_ratio;
+    
     loop {
         let target_size = input_size - additional_shrink_mb;
         video_output_path = video_transcode::video(input_file.clone(), audio_output_path.clone(), output_path.clone(), &target_size).await;
@@ -79,7 +81,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 } else {
                     println!("Video pass-size mismatch: expected {:.2} MB, got {:.2} MB. Retrying...", input_size, video_size);
-                    additional_shrink_mb += 1.0;
+                    shrink_ratio = video_size / 25.0;
+                    additional_shrink_mb += shrink_ratio;
                 }
             }
             Err(e) => {
