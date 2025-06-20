@@ -14,7 +14,8 @@ jobs:
     - name: Install dependencies
       run: |
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        brew install clang ffmpeg pkg-config
+        brew install --with-toolchain llvm
+        brew install ffmpeg pkg-config
 
     - name: Build
       run: cargo build --release --verbose
