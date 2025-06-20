@@ -19,7 +19,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y clang libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev pkg-config xclip
+        sudo apt install -y clang libavcodec-dev libavformat-dev libavutil-dev libavdevice-dev libavfilter-dev pkg-config xclip
 
     - name: Build
       run: cargo build --verbose
