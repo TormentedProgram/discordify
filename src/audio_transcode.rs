@@ -206,23 +206,20 @@ impl Transcoder {
             self.frame_count += 1;
             let timestamp = decoded.timestamp();
             decoded.set_pts(timestamp);
-            self.log_progress(f64::from(
-                Rational(timestamp.unwrap_or(0) as i32, 1) * self.input_time_base,
-            ));
+            self.log_progress();
             self.add_frame_to_filter(&decoded);
             self.get_and_process_filtered_frames(octx);
         }
     }
 
-    fn log_progress(&mut self, timestamp: f64) {
+    fn log_progress(&mut self) {
         if (self.frame_count - self.last_log_frame_count < 100 && self.last_log_time.elapsed().as_secs_f64() < 1.0) {
             return;
         }
         let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
-        let hours = total_seconds / 3600;
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
-        let formatted_time = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+        let formatted_time = format!("{:02}:{:02}", minutes, seconds);
         eprintln!(
             "[RUST] AUDIO ELAPSED: \t{:8.2}s\tFRAMES: {:8}\tTIMESTAMP: \t{formatted_time}",
             self.starting_time.elapsed().as_secs_f64(),
@@ -234,7 +231,6 @@ impl Transcoder {
 }
 
 pub async fn audio(input: &PathBuf, file_size: &f32) -> PathBuf {
-    ffmpeg::init().unwrap();
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
 

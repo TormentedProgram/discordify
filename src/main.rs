@@ -1,14 +1,14 @@
 mod video_transcode;
 mod audio_transcode;
+mod utils;
 
 use std::{env, fs};
 use std::fs::{metadata, File};
 use std::io::Read;
-use std::path::Path;
-use std::process::Command;
+use std::path::{Path};
 use tokio;
-use wl_clipboard_rs::copy::{MimeType, Options, Source};
 use sha1::{Sha1, Digest};
+use ffmpeg_next as ffmpeg;
 const OVERRIDDEN_PATH:&str = "";
 
 #[tokio::main]
@@ -24,6 +24,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     input_size = env::args().nth(2).expect("missing set file-size").parse().expect("unable to parse input size");
 
     let input_file = Path::new(&input_file).to_path_buf();
+
+    match metadata(&input_file) {
+        Ok(meta) => {
+            let file_size_bytes = meta.len();
+            let video_size = file_size_bytes as f32 / (1024.0 * 1024.0);
+            if video_size <= input_size {
+                println!("File is {video_size} MB which is already below {input_size} MB, so nothing happened!");
+                utils::copy_video_file(&input_file);
+                return Ok(());
+            }
+        }
+        Err(e) => {
+            eprintln!("Error reading file metadata: {}", e);
+        }
+    }
+
+    match ffmpeg::init() {
+        Ok(_) => println!("FFmpeg initialized successfully."),
+        Err(e) => {
+            eprintln!("Failed to initialize FFmpeg: {}", e);
+            return Err(e.into());
+        }
+    }
+
     let audio_output_path = audio_transcode::audio(&input_file, &input_size).await;
 
     let input_file_name = input_file
@@ -92,23 +116,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let video_output_path_str = video_output_path
-        .to_str()
-        .expect("failed to convert video output path to string");
-
-    match std::fs::remove_file(&audio_output_path_str) {
+    match fs::remove_file(&audio_output_path_str) {
         Ok(_) => {},
         Err(e) => eprintln!("Error removing audio file: {}", e),
     }
 
-    match std::fs::rename(&video_output_path, &final_output_path) {
+    match fs::rename(&video_output_path, &final_output_path) {
         Ok(_) => {},
         Err(e) => eprintln!("Error renaming file: {}", e),
     }
 
-    let opts = Options::new();
-    opts.copy(Source::Bytes(video_output_path_str.to_string().into_bytes().into()), MimeType::Autodetect)?;
-    println!("Copied output path to clipboard!");
+    utils::copy_video_file(&final_output_path);
 
     Ok(())
 }
