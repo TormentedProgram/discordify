@@ -1,21 +1,15 @@
 mod video_transcode;
 mod audio_transcode;
+mod utils;
 
 use std::{env, fs};
 use std::fs::{metadata, File};
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use tokio;
-use wl_clipboard_rs::copy::{MimeType, Options, Source};
 use sha1::{Sha1, Digest};
+use ffmpeg_next as ffmpeg;
 const OVERRIDDEN_PATH:&str = "";
-
-fn get_video_bytes(file_path: PathBuf) -> std::io::Result<Vec<u8>> {
-    let mut file = File::open(&file_path)?;
-    let mut video_bytes = Vec::new();
-    file.read_to_end(&mut video_bytes)?;
-    Ok(video_bytes)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,21 +31,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let video_size = file_size_bytes as f32 / (1024.0 * 1024.0);
             if video_size <= input_size {
                 println!("File is {video_size} MB which is already below {input_size} MB, so nothing happened!");
-                match get_video_bytes(input_file) {
-                    Ok(video_bytes) => {
-                        let opts = Options::new();
-                        opts.copy(Source::Bytes(video_bytes.into()), MimeType::Specific("video/mp4".to_string()))?;
-                        println!("Copied video file to clipboard!");
-                    }
-                    Err(e) => {
-                        eprintln!("Error reading video file bytes: {}", e);
-                    }
-                }
+                utils::copy_video_file(&input_file);
                 return Ok(());
             }
         }
         Err(e) => {
             eprintln!("Error reading file metadata: {}", e);
+        }
+    }
+
+    match ffmpeg::init() {
+        Ok(_) => println!("FFmpeg initialized successfully."),
+        Err(e) => {
+            eprintln!("Failed to initialize FFmpeg: {}", e);
+            return Err(e.into());
         }
     }
 
@@ -133,16 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error renaming file: {}", e),
     }
 
-    match get_video_bytes(final_output_path) {
-        Ok(video_bytes) => {
-            let opts = Options::new();
-            opts.copy(Source::Bytes(video_bytes.into()), MimeType::Specific("video/mp4".to_string()))?;
-            println!("Copied video file to clipboard!");
-        }
-        Err(e) => {
-            eprintln!("Error reading video file bytes: {}", e);
-        }
-    }
+    utils::copy_video_file(&final_output_path);
 
     Ok(())
 }

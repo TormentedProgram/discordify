@@ -41,7 +41,6 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
         .to_str()
         .expect("failed to convert output file path to string");
 
-    ffmpeg::init().expect("failed to initialize ffmpeg");
     log::set_level(log::Level::Info);
 
     let audio_input_context = format::input(&audio_path).unwrap();
