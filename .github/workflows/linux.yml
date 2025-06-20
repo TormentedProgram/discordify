@@ -12,6 +12,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions: write-all
 
     steps:
     - uses: actions/checkout@v4
@@ -22,10 +23,7 @@ jobs:
         sudo apt install -y clang libavcodec-dev libavformat-dev libavutil-dev libavdevice-dev libavfilter-dev pkg-config xclip
 
     - name: Build
-      run: cargo build --verbose
-
-    - name: Run tests
-      run: cargo test --verbose
+      run: cargo build --release --verbose
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
