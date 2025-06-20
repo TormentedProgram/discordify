@@ -9,7 +9,14 @@ use std::path::{Path};
 use tokio;
 use sha1::{Sha1, Digest};
 use ffmpeg_next as ffmpeg;
+use rust_embed::Embed;
+
 const OVERRIDDEN_PATH:&str = "";
+
+#[derive(Embed)]
+#[folder = "assets/"]
+#[prefix = "assets/"]
+struct Asset;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -127,6 +134,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     utils::copy_video_file(&final_output_path);
+
+    let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+    let embedded_file = Asset::get("assets/done.wav").unwrap();
+    let cursor = std::io::Cursor::new(embedded_file.data); // Use the correct field to access the data
+    let beep1 = stream_handle.play_once(cursor).unwrap();
+    beep1.set_volume(0.2);
+    beep1.sleep_until_end();
+    drop(beep1);
 
     Ok(())
 }
