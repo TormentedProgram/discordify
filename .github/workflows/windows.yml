@@ -31,6 +31,9 @@ jobs:
           mv ffmpeg-*/* ffmpeg/
           Add-Content $env:GITHUB_ENV "FFMPEG_DIR=${pwd}\ffmpeg`n"
           Add-Content $env:GITHUB_PATH "${pwd}\ffmpeg\bin`n"
+          mkdir target/release
+          Copy-Item "ffmpeg/bin/*.dll" "target/release" -Recurse
+
 
     - name: Set up Rust
       uses: actions-rs/toolchain@v1
