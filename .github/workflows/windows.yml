@@ -17,7 +17,6 @@ jobs:
     
     - name: Install dependencies
       run: |
-        Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
         choco install ffmpeg
 
     - name: Build
@@ -26,4 +25,4 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        path: target/release/discordify
+        path: target/release/discordify.exe
