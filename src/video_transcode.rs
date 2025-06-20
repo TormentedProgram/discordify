@@ -9,7 +9,7 @@ use std::env;
 use std::fs::metadata;
 use std::path::PathBuf;
 use std::time::Instant;
-
+use ffmpeg_next::Rescale;
 use crate::OVERRIDDEN_PATH;
 
 struct VideoTranscoder {
@@ -50,7 +50,7 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
 
     format::context::input::dump(&input_context, 0, Some(&input_file.to_str().expect("failed to convert input file path to string")));
 
-    let x264_opts_string = "preset=ultrafast".to_string();
+    let x264_opts_string = "preset=slow".to_string();
     let x264_opts = parse_opts(x264_opts_string)
         .expect("invalid x264 options string");
 
@@ -200,7 +200,6 @@ impl VideoTranscoder {
 
         video_encoder.set_bit_rate(cool_bit_rate as usize);
         video_encoder.set_max_bit_rate(cool_bit_rate as usize);
-
         if global_header {
             video_encoder.set_flags(codec::Flags::GLOBAL_HEADER);
         }
@@ -241,9 +240,7 @@ impl VideoTranscoder {
         while self.decoder.receive_frame(&mut frame).is_ok() {
             self.frame_count += 1;
             let timestamp = frame.timestamp();
-            self.log_progress(f64::from(
-                Rational(timestamp.unwrap_or(0) as i32, 1) * self.input_time_base,
-            ));
+            self.log_progress();
             frame.set_pts(timestamp);
             frame.set_kind(picture::Type::None);
             self.send_frame_to_encoder(&frame);
@@ -272,7 +269,7 @@ impl VideoTranscoder {
         }
     }
 
-    fn log_progress(&mut self, timestamp: f64) {
+    fn log_progress(&mut self) {
         if !self.logging_enabled
             || (self.frame_count - self.last_log_frame_count < 100
             && self.last_log_time.elapsed().as_secs_f64() < 1.0)
@@ -281,10 +278,9 @@ impl VideoTranscoder {
         }
 
         let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
-        let hours = total_seconds / 3600;
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
-        let formatted_time = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+        let formatted_time = format!("{:02}:{:02}", minutes, seconds);
         eprintln!(
             "[RUST] VIDEO ELAPSED: \t{:8.2}s\tFRAMES: {:8}\tTIMESTAMP: \t{formatted_time}",
             self.starting_time.elapsed().as_secs_f64(),
