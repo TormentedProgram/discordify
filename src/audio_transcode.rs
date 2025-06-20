@@ -5,7 +5,7 @@ use ffmpeg_next as ffmpeg;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use ffmpeg::{codec, filter, frame, media};
-use ffmpeg_next::{format, Rational};
+use ffmpeg_next::format;
 use sha1::{Sha1, Digest};
 
 fn filter(
@@ -42,7 +42,7 @@ fn filter(
     if let Some(codec) = encoder.codec() {
         if !codec
             .capabilities()
-            .contains(ffmpeg::codec::capabilities::Capabilities::VARIABLE_FRAME_SIZE)
+            .contains(codec::capabilities::Capabilities::VARIABLE_FRAME_SIZE)
         {
             filter
                 .get("out")
@@ -62,7 +62,6 @@ struct Transcoder {
     encoder: codec::encoder::Audio,
     in_time_base: ffmpeg::Rational,
     out_time_base: ffmpeg::Rational,
-    input_time_base: Rational,
     last_log_time: Instant,
     last_log_frame_count: usize,
     starting_time: Instant,
@@ -84,7 +83,7 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
         .streams()
         .best(media::Type::Audio)
         .expect("could not find best audio stream");
-    let context = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
+    let context = codec::context::Context::from_parameters(input.parameters())?;
     let mut decoder = context.decoder().audio()?;
     let codec = ffmpeg::encoder::find(octx.format().codec(path, media::Type::Audio))
         .expect("failed to find encoder")
@@ -92,12 +91,12 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
     let global = octx
         .format()
         .flags()
-        .contains(ffmpeg::format::flag::Flags::GLOBAL_HEADER);
+        .contains(format::flag::Flags::GLOBAL_HEADER);
 
     decoder.set_parameters(input.parameters())?;
 
     let mut output = octx.add_stream(codec)?;
-    let context = ffmpeg::codec::context::Context::from_parameters(output.parameters())?;
+    let context = codec::context::Context::from_parameters(output.parameters())?;
     let mut encoder = context.encoder().audio()?;
 
     let channel_layout = codec
@@ -106,7 +105,7 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
         .unwrap_or(ffmpeg::channel_layout::ChannelLayout::STEREO);
 
     if global {
-        encoder.set_flags(ffmpeg::codec::flag::Flags::GLOBAL_HEADER);
+        encoder.set_flags(codec::flag::Flags::GLOBAL_HEADER);
     }
 
     encoder.set_rate(decoder.rate() as i32);
@@ -139,7 +138,6 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
     Ok(Transcoder {
         stream: input.index(),
         filter,
-        input_time_base: Rational::from((1, decoder.rate() as i32)),
         decoder,
         encoder,
         in_time_base,
@@ -213,7 +211,7 @@ impl Transcoder {
     }
 
     fn log_progress(&mut self) {
-        if (self.frame_count - self.last_log_frame_count < 100 && self.last_log_time.elapsed().as_secs_f64() < 1.0) {
+        if self.frame_count - self.last_log_frame_count < 100 && self.last_log_time.elapsed().as_secs_f64() < 1.0 {
             return;
         }
         let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
@@ -234,7 +232,7 @@ pub async fn audio(input: &PathBuf, file_size: &f32) -> PathBuf {
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
 
-    let mut buffer = [0; 1024]; // 1 KB buffer
+    let mut buffer = [0; 1024];
     loop {
         let bytes_read = file.read(&mut buffer).unwrap();
         if bytes_read == 0 {
@@ -256,7 +254,6 @@ pub async fn audio(input: &PathBuf, file_size: &f32) -> PathBuf {
         .expect("failed to convert output file path to string");
 
     let filter = "anull".to_owned();
-    let seek = 0;
 
     let mut ictx = format::input(&input).unwrap();
     let mut octx = format::output(&output).unwrap();

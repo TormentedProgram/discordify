@@ -45,7 +45,7 @@ pub fn copy_video_file(file_path:&PathBuf) {
                     println!("Video successfully copied to clipboard..");
                 }
             }
-            Err(absolute_path) => {
+            Err(_) => {
                 eprintln!("Failed to get absolute path for the video file: {}", file_path.display());
             }
         }

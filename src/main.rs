@@ -57,11 +57,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let audio_output_path = audio_transcode::audio(&input_file, &input_size).await;
 
-    let input_file_name = input_file
-        .file_name()
-        .and_then(|s| s.to_str())
-        .expect("invalid input file name");
-
     let mut hasher = Sha1::new();
     let mut file = File::open(&input_file).unwrap();
 

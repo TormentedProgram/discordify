@@ -9,7 +9,6 @@ use std::env;
 use std::fs::metadata;
 use std::path::PathBuf;
 use std::time::Instant;
-use ffmpeg_next::Rescale;
 use crate::OVERRIDDEN_PATH;
 
 struct VideoTranscoder {
@@ -50,7 +49,7 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
 
     format::context::input::dump(&input_context, 0, Some(&input_file.to_str().expect("failed to convert input file path to string")));
 
-    let x264_opts_string = "preset=slow".to_string();
+    let x264_opts_string = "preset=veryslow".to_string();
     let x264_opts = parse_opts(x264_opts_string)
         .expect("invalid x264 options string");
 
@@ -166,7 +165,7 @@ impl VideoTranscoder {
         wanted_size: &f32,
     ) -> Result<Self, ffmpeg::Error> {
         let global_header = output_context.format().flags().contains(format::Flags::GLOBAL_HEADER);
-        let decoder = ffmpeg::codec::context::Context::from_parameters(input_stream.parameters())?
+        let decoder = codec::context::Context::from_parameters(input_stream.parameters())?
             .decoder()
             .video()?;
 
