@@ -48,4 +48,14 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        path: target/release
+        path: |
+          target/release/discordify.exe
+          target/release/avcodec-61.dll
+          target/release/avdevice-61.dll
+          target/release/avfilter-10.dll
+          target/release/avformat-61.dll
+          target/release/avutil-59.dll
+          target/release/postproc-58.dll
+          target/release/swresample-5.dll
+          target/release/swscale-8.dll
+
