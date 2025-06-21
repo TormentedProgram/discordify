@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command};
 
 fn is_wlcopy_available() -> bool {
-    Command::new("wlcopy").arg("-version").output().map_or(false, |output| output.status.success())
+    Command::new("wl-copy").arg("-version").output().map_or(false, |output| output.status.success())
 }
 
 fn is_wayland() -> bool {

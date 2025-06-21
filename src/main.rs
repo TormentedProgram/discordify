@@ -6,6 +6,7 @@ use std::{env, fs};
 use std::fs::{metadata, File};
 use std::io::Read;
 use std::path::{Path};
+use std::time::Instant;
 use tokio;
 use sha1::{Sha1, Digest};
 use ffmpeg_next as ffmpeg;
@@ -37,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let file_size_bytes = meta.len();
             let video_size = file_size_bytes as f32 / (1024.0 * 1024.0);
             if video_size <= input_size {
-                println!("File is {video_size} MB which is already below {input_size} MB, so nothing happened!");
+                println!("[RUST] File is {video_size} MB which is already below {input_size} MB, so nothing happened!");
                 utils::copy_video_file(&input_file);
                 return Ok(());
             }
@@ -46,16 +47,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("Error reading file metadata: {}", e);
         }
     }
-
+    let actual_start_time;
     match ffmpeg::init() {
-        Ok(_) => println!("FFmpeg initialized successfully."),
+        Ok(_) => {
+            println!("FFmpeg initialized successfully.");
+            actual_start_time = Instant::now();
+        },
         Err(e) => {
             eprintln!("Failed to initialize FFmpeg: {}", e);
             return Err(e.into());
         }
     }
 
-    let audio_output_path = audio_transcode::audio(&input_file, &input_size).await;
+    let audio_output_path = audio_transcode::audio(&input_file, &input_size, actual_start_time).await;
 
     let mut hasher = Sha1::new();
     let mut file = File::open(&input_file).unwrap();
@@ -96,17 +100,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     loop {
         let target_size = input_size - additional_shrink_mb;
-        video_output_path = video_transcode::video(input_file.clone(), audio_output_path.clone(), output_path.clone(), &target_size).await;
+        video_output_path = video_transcode::video(input_file.clone(), audio_output_path.clone(), output_path.clone(), &target_size, actual_start_time).await;
 
         match metadata(&video_output_path) {
             Ok(meta) => {
                 let file_size_bytes = meta.len();
                 video_size = file_size_bytes as f32 / (1024.0 * 1024.0);
                 if video_size <= input_size {
-                    println!("Video transcoding complete: {} MB", video_size);
+                    println!("[RUST] Video transcoding complete: {} MB", video_size);
                     break;
                 } else {
-                    println!("Video pass-size mismatch: expected {:.2} MB, got {:.2} MB. Retrying...", input_size, video_size);
+                    println!("[RUST] Video pass failed: wanted {:.2} MB, received {:.2} MB. Starting next pass...", input_size, video_size);
                     shrink_ratio = video_size / 25.0;
                     additional_shrink_mb += shrink_ratio;
                 }

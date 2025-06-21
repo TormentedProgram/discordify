@@ -5,7 +5,7 @@ use ffmpeg::{
     codec, decoder, encoder, format, frame, log, media, picture, Dictionary, Packet, Rational
 };
 use std::collections::HashMap;
-use std::env;
+use std::{env, fs};
 use std::fs::metadata;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -21,15 +21,28 @@ struct VideoTranscoder {
     last_log_frame_count: usize,
     starting_time: Instant,
     last_log_time: Instant,
+    output_path: PathBuf,
+    wanted_size: f32,
+    actual_start_time:Instant
 }
 
-pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBuf, wanted_size:&f32) -> PathBuf {
+pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBuf, wanted_size:&f32, actual_start_time:Instant) -> PathBuf {
     let mut audio_file_size = 0.0;
     match metadata(&audio_path) {
         Ok(meta) => {
             let file_size_bytes = meta.len();
             audio_file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
-            println!("File size: {audio_file_size}");
+        }
+        Err(e) => {
+            eprintln!("Error getting file metadata: {}", e);
+        }
+    }
+
+    let mut input_file_size = 0.0;
+    match metadata(&input_file) {
+        Ok(meta) => {
+            let file_size_bytes = meta.len();
+            input_file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
         }
         Err(e) => {
             eprintln!("Error getting file metadata: {}", e);
@@ -40,7 +53,7 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
         .to_str()
         .expect("failed to convert output file path to string");
 
-    log::set_level(log::Level::Info);
+    log::set_level(log::Level::Error);
 
     let audio_input_context = format::input(&audio_path).unwrap();
 
@@ -49,8 +62,13 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
 
     format::context::input::dump(&input_context, 0, Some(&input_file.to_str().expect("failed to convert input file path to string")));
 
-    let x264_opts_string = "preset=veryslow".to_string();
-    let x264_opts = parse_opts(x264_opts_string)
+    let x264_opts_string = match input_file_size {
+        1.0..=200.0 => "preset=slow",
+        200.0..=500.0 => "preset=medium",
+        _ =>  "preset=fast"
+    };
+
+    let x264_opts = parse_opts(x264_opts_string.to_string())
         .expect("invalid x264 options string");
 
     let best_audio_index = audio_input_context
@@ -89,6 +107,8 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
                     Some(input_stream_index) == best_video_stream_index,
                     audio_file_size as f32,
                     wanted_size,
+                    output_path.clone(),
+                    actual_start_time,
                 ).unwrap(),
             );
             }else if input_stream_medium == media::Type::Audio {
@@ -163,6 +183,8 @@ impl VideoTranscoder {
         enable_logging: bool,
         audio_file_size: f32,
         wanted_size: &f32,
+        output_path : PathBuf,
+        actual_start_time:Instant,
     ) -> Result<Self, ffmpeg::Error> {
         let global_header = output_context.format().flags().contains(format::Flags::GLOBAL_HEADER);
         let decoder = codec::context::Context::from_parameters(input_stream.parameters())?
@@ -219,6 +241,9 @@ impl VideoTranscoder {
             last_log_frame_count: 0,
             starting_time: Instant::now(),
             last_log_time: Instant::now(),
+            output_path,
+            wanted_size: *wanted_size,
+            actual_start_time,
         })
     }
 
@@ -240,6 +265,24 @@ impl VideoTranscoder {
             self.frame_count += 1;
             let timestamp = frame.timestamp();
             self.log_progress();
+            let file_size;
+            if fs::exists(&self.output_path).expect("failed to check if file exists") {
+                match metadata(&self.output_path) {
+                    Ok(meta) => {
+                        let file_size_bytes = meta.len();
+                        file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
+                        if (file_size as f32) > self.wanted_size {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error getting file metadata: {}", e);
+                    }
+                }
+            } else {
+                println!("File does not exist: {}", self.output_path.display());
+            }
+
             frame.set_pts(timestamp);
             frame.set_kind(picture::Type::None);
             self.send_frame_to_encoder(&frame);
@@ -276,7 +319,7 @@ impl VideoTranscoder {
             return;
         }
 
-        let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
+        let total_seconds = self.actual_start_time.elapsed().as_secs_f64() as u64;
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
         let formatted_time = format!("{:02}:{:02}", minutes, seconds);

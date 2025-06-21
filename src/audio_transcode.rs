@@ -65,7 +65,8 @@ struct Transcoder {
     last_log_time: Instant,
     last_log_frame_count: usize,
     starting_time: Instant,
-    frame_count: usize
+    frame_count: usize,
+    actual_start_time: Instant,
 }
 
 fn linear_scale(input: f32, input_min: f32, input_max: f32, output_min: f32, output_max: f32) -> f32 {
@@ -78,6 +79,7 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
     path: &P,
     filter_spec: &str,
     file_size: &f32,
+    actual_start_time: Instant,
 ) -> Result<Transcoder, ffmpeg::Error> {
     let input = ictx
         .streams()
@@ -146,6 +148,7 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
         last_log_frame_count: 0,
         starting_time: Instant::now(),
         frame_count: 0,
+        actual_start_time,
     })
 }
 
@@ -214,7 +217,7 @@ impl Transcoder {
         if self.frame_count - self.last_log_frame_count < 100 && self.last_log_time.elapsed().as_secs_f64() < 1.0 {
             return;
         }
-        let total_seconds = self.starting_time.elapsed().as_secs_f64() as u64;
+        let total_seconds = self.actual_start_time.elapsed().as_secs_f64() as u64;
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
         let formatted_time = format!("{:02}:{:02}", minutes, seconds);
@@ -228,7 +231,7 @@ impl Transcoder {
     }
 }
 
-pub async fn audio(input: &PathBuf, file_size: &f32) -> PathBuf {
+pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) -> PathBuf {
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
 
@@ -257,7 +260,7 @@ pub async fn audio(input: &PathBuf, file_size: &f32) -> PathBuf {
 
     let mut ictx = format::input(&input).unwrap();
     let mut octx = format::output(&output).unwrap();
-    let mut transcoder = transcoder(&mut ictx, &mut octx, &output, &filter, file_size).unwrap();
+    let mut transcoder = transcoder(&mut ictx, &mut octx, &output, &filter, file_size, actual_start_time).unwrap();
 
     octx.set_metadata(ictx.metadata().to_owned());
     octx.write_header().unwrap();
