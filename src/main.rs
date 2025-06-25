@@ -10,6 +10,7 @@ use std::time::Instant;
 use tokio;
 use sha1::{Sha1, Digest};
 use ffmpeg_next as ffmpeg;
+use ffmpeg_next::log;
 use rust_embed::Embed;
 
 const OVERRIDDEN_PATH:&str = "";
@@ -51,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match ffmpeg::init() {
         Ok(_) => {
             println!("FFmpeg initialized successfully.");
+            log::set_level(log::Level::Error);
             actual_start_time = Instant::now();
         },
         Err(e) => {

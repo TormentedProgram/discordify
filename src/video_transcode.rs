@@ -2,7 +2,7 @@ use ffmpeg_next as ffmpeg;
 
 //video
 use ffmpeg::{
-    codec, decoder, encoder, format, frame, log, media, picture, Dictionary, Packet, Rational
+    codec, decoder, encoder, format, frame, media, picture, Dictionary, Packet, Rational
 };
 use std::collections::HashMap;
 use std::{env, fs};
@@ -59,8 +59,6 @@ pub async fn video(input_file: PathBuf, audio_path: &Option<PathBuf>, output_pat
         .to_str()
         .expect("failed to convert output file path to string");
 
-    log::set_level(log::Level::Error);
-
     let audio_input_context: Option<format::context::input::Input>;
     if let Some(path) = audio_path {
         audio_input_context = format::input(path).ok();
@@ -110,7 +108,6 @@ pub async fn video(input_file: PathBuf, audio_path: &Option<PathBuf>, output_pat
         input_stream_time_bases[input_stream_index] = input_stream.time_base();
 
         if input_stream_medium == media::Type::Video {
-            // Initialize transcoder for video stream.
             transcoders.insert(
                 input_stream_index,
                 VideoTranscoder::new(
@@ -212,7 +209,7 @@ impl VideoTranscoder {
             .decoder()
             .video()?;
 
-        let codec = encoder::find(codec::Id::H264);
+        let codec = encoder::find(decoder.codec().unwrap().id());
         let mut output_stream = output_context.add_stream(codec)?;
 
         let input_file:String;

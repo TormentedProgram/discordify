@@ -5,7 +5,7 @@ use ffmpeg_next as ffmpeg;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use ffmpeg::{codec, filter, frame, media};
-use ffmpeg_next::format;
+use ffmpeg_next::{format};
 use sha1::{Sha1, Digest};
 
 fn filter(
@@ -244,7 +244,7 @@ pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) 
             return Err(Box::from("Audio stream not found"));
         }
     };
-    
+
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
 
