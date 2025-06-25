@@ -26,21 +26,24 @@ struct VideoTranscoder {
     actual_start_time:Instant
 }
 
-pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBuf, wanted_size:&f32, actual_start_time:Instant) -> PathBuf {
+pub async fn video(input_file: PathBuf, audio_path: &Option<PathBuf>, output_path: PathBuf, wanted_size:&f32, actual_start_time:Instant) -> PathBuf {
     let mut audio_file_size = 0.0;
-    if !audio_path.exists() { 
-        audio_file_size = 0.0;
-    }else{
-        match metadata(&audio_path) {
-            Ok(meta) => {
-                let file_size_bytes = meta.len();
-                audio_file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
-            }
-            Err(e) => {
-                eprintln!("Error getting file metadata: {}", e);
+
+    match audio_path {
+        Some(path) => {
+            match metadata(&path) {
+                Ok(meta) => {
+                    let file_size_bytes = meta.len();
+                    audio_file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
+                }
+                Err(..) => {
+                    audio_file_size = 0.0;
+                }
             }
         }
+        None => {}
     }
+
     let mut input_file_size = 0.0;
     match metadata(&input_file) {
         Ok(meta) => {
@@ -58,7 +61,12 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
 
     log::set_level(log::Level::Error);
 
-    let audio_input_context = format::input(&audio_path).unwrap();
+    let audio_input_context: Option<format::context::input::Input>;
+    if let Some(path) = audio_path {
+        audio_input_context = format::input(path).ok();
+    } else {
+        audio_input_context = None;
+    }
 
     let mut input_context = format::input(&input_file).unwrap();
     let mut output_context = format::output(&output_file).unwrap();
@@ -74,10 +82,13 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
     let x264_opts = parse_opts(x264_opts_string.to_string())
         .expect("invalid x264 options string");
 
-    let best_audio_index = audio_input_context
-        .streams()
-        .best(media::Type::Audio)
-        .map(|stream| stream.index());
+    let best_audio_index = match &audio_input_context {
+        Some(audio_ctx) => audio_ctx
+            .streams()
+            .best(media::Type::Audio)
+            .map(|stream| stream.index()),
+        None => None,
+    };
 
     let best_video_stream_index = input_context
         .streams()
@@ -116,11 +127,18 @@ pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBu
             );
             }else if input_stream_medium == media::Type::Audio {
                 if let Some(audio_index) = best_audio_index {
-                    let audio_stream = audio_input_context.streams().nth(audio_index).unwrap();
-                    let mut output_audio_stream = output_context.add_stream(encoder::find(codec::Id::None)).unwrap();
-                    output_audio_stream.set_parameters(audio_stream.parameters());
-                    unsafe {
-                        (*output_audio_stream.parameters().as_mut_ptr()).codec_tag = 0;
+                    match &audio_input_context {
+                        Some(audio_input_context) => {
+                            let audio_stream = &audio_input_context.streams().nth(audio_index).unwrap();
+                            let mut output_audio_stream = output_context.add_stream(encoder::find(codec::Id::None)).unwrap();
+                            output_audio_stream.set_parameters(audio_stream.parameters());
+                            unsafe {
+                                (*output_audio_stream.parameters().as_mut_ptr()).codec_tag = 0;
+                            }
+                        }
+                        None => {
+                            eprintln!("No audio input context available, skipping audio stream.");
+                        }
                     }
                 }
             } else {

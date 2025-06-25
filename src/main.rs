@@ -59,8 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let audio_output_path = audio_transcode::audio(&input_file, &input_size, actual_start_time).await.unwrap_or_else(|e| None);
-    
+    let audio_output_path = audio_transcode::audio(&input_file, &input_size, actual_start_time).await.unwrap_or_else(| _e |None);
     let mut hasher = Sha1::new();
     let mut file = File::open(&input_file).unwrap();
 
@@ -87,12 +86,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("discord_ready_video")
         .with_extension("mp4");
 
-    let audio_output = audio_output_path.clone().unwrap();
-
-    let audio_output_path_str = &audio_output
-        .to_str()
-        .expect("failed to convert audio output path to string");
-
     let mut video_size:f32;
     let mut video_output_path;
     let mut additional_shrink_mb = 0.0;
@@ -100,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     loop {
         let target_size = input_size - additional_shrink_mb;
-        video_output_path = video_transcode::video(input_file.clone(), audio_output_path.clone().expect("idk why it wont clone"), output_path.clone(), &target_size, actual_start_time).await;
+        video_output_path = video_transcode::video(input_file.clone(), &audio_output_path, output_path.clone(), &target_size, actual_start_time).await;
 
         match metadata(&video_output_path) {
             Ok(meta) => {
@@ -122,9 +115,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    match fs::remove_file(&audio_output_path_str) {
-        Ok(_) => {},
-        Err(e) => eprintln!("Error removing audio file: {}", e),
+    let audio_output_path_str: Option<String> = match audio_output_path {
+        Some(path) => path.to_str().map(|s| s.to_string()), // Convert to String
+        None => None,
+    };
+
+    match &audio_output_path_str {
+        Some(path) => {
+            match fs::remove_file(&path) {
+                Ok(_) => {},
+                Err(e) => eprintln!("Error removing audio file: {}", e),
+            }
+        },
+        None => {}
     }
 
     match fs::rename(&video_output_path, &final_output_path) {

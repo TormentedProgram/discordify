@@ -235,6 +235,16 @@ impl Transcoder {
 }
 
 pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
+    let mut ictx = format::input(&input).unwrap();
+
+    match ictx.streams().best(media::Type::Audio) {
+        Some(stream) => stream,
+        None => {
+            eprintln!("Could not find audio stream.");
+            return Err(Box::from("Audio stream not found"));
+        }
+    };
+    
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
 
@@ -246,6 +256,7 @@ pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) 
         }
         hasher.update(&buffer[..bytes_read]);
     }
+
     let result = hasher.finalize();
     let input_file_name = result.iter().map(|byte| format!("{:02x}", byte)).collect::<String>();
     
@@ -261,7 +272,6 @@ pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) 
 
     let filter = "anull".to_owned();
 
-    let mut ictx = format::input(&input).unwrap();
     let mut octx = format::output(&output).unwrap();
     let mut transcoder = transcoder(&mut ictx, &mut octx, &output, &filter, file_size, actual_start_time).unwrap();
 
