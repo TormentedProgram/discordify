@@ -28,16 +28,19 @@ struct VideoTranscoder {
 
 pub async fn video(input_file: PathBuf, audio_path: PathBuf, output_path: PathBuf, wanted_size:&f32, actual_start_time:Instant) -> PathBuf {
     let mut audio_file_size = 0.0;
-    match metadata(&audio_path) {
-        Ok(meta) => {
-            let file_size_bytes = meta.len();
-            audio_file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
-        }
-        Err(e) => {
-            eprintln!("Error getting file metadata: {}", e);
+    if !audio_path.exists() { 
+        audio_file_size = 0.0;
+    }else{
+        match metadata(&audio_path) {
+            Ok(meta) => {
+                let file_size_bytes = meta.len();
+                audio_file_size = file_size_bytes as f64 / (1024.0 * 1024.0);
+            }
+            Err(e) => {
+                eprintln!("Error getting file metadata: {}", e);
+            }
         }
     }
-
     let mut input_file_size = 0.0;
     match metadata(&input_file) {
         Ok(meta) => {

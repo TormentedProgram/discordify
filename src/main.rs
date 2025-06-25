@@ -59,8 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let audio_output_path = audio_transcode::audio(&input_file, &input_size, actual_start_time).await;
-
+    let audio_output_path = audio_transcode::audio(&input_file, &input_size, actual_start_time).await.unwrap_or_else(|e| None);
+    
     let mut hasher = Sha1::new();
     let mut file = File::open(&input_file).unwrap();
 
@@ -87,9 +87,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("discord_ready_video")
         .with_extension("mp4");
 
-    let audio_output = audio_output_path.clone();
+    let audio_output = audio_output_path.clone().unwrap();
 
-    let audio_output_path_str = audio_output
+    let audio_output_path_str = &audio_output
         .to_str()
         .expect("failed to convert audio output path to string");
 
@@ -100,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     loop {
         let target_size = input_size - additional_shrink_mb;
-        video_output_path = video_transcode::video(input_file.clone(), audio_output_path.clone(), output_path.clone(), &target_size, actual_start_time).await;
+        video_output_path = video_transcode::video(input_file.clone(), audio_output_path.clone().expect("idk why it wont clone"), output_path.clone(), &target_size, actual_start_time).await;
 
         match metadata(&video_output_path) {
             Ok(meta) => {

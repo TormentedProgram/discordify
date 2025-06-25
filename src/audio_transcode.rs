@@ -81,10 +81,13 @@ fn transcoder<P: AsRef<Path> + ?Sized>(
     file_size: &f32,
     actual_start_time: Instant,
 ) -> Result<Transcoder, ffmpeg::Error> {
-    let input = ictx
-        .streams()
-        .best(media::Type::Audio)
-        .expect("could not find best audio stream");
+    let input = match ictx.streams().best(media::Type::Audio) {
+        Some(stream) => stream,
+        None => {
+            eprintln!("Could not find audio stream.");
+            return Err(ffmpeg::Error::StreamNotFound);
+        }
+    };
     let context = codec::context::Context::from_parameters(input.parameters())?;
     let mut decoder = context.decoder().audio()?;
     let codec = ffmpeg::encoder::find(octx.format().codec(path, media::Type::Audio))
@@ -231,7 +234,7 @@ impl Transcoder {
     }
 }
 
-pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) -> PathBuf {
+pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
     let mut hasher = Sha1::new();
     let mut file = File::open(input).unwrap();
 
@@ -284,5 +287,5 @@ pub async fn audio(input: &PathBuf, file_size: &f32, actual_start_time:Instant) 
 
     octx.write_trailer().unwrap();
 
-    output_path
+    Ok(Option::from(output_path))
 }
